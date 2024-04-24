@@ -1,3 +1,4 @@
+from pymongo import MongoClient
 from kafka import KafkaConsumer
 import json
 from collections import defaultdict
@@ -37,47 +38,29 @@ def apriori(transactions, min_support):
         frequent_itemsets.append(current_frequent_items)
         k += 1
         candidate_itemsets = generate_candidates(current_frequent_items, k)
+        valid_candidates = set()
+
+        # Prune candidates that have any non-frequent subset
+        for candidate in candidate_itemsets:
+            if all(frozenset(subset) in current_frequent_items for subset in itertools.combinations(candidate, k - 1)):
+                valid_candidates.add(candidate)
+
         current_frequent_items = {
-            itemset for itemset in candidate_itemsets
+            itemset for itemset in valid_candidates
             if sum(all(item in transaction for item in itemset) for transaction in transactions) >= min_support
         }
 
     return frequent_itemsets
 
 
-'''def main():
-    consumer = KafkaConsumer(
-        'bda3',
-        bootstrap_servers=['localhost:9092'],
-        auto_offset_reset='earliest',
-        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
-    )
-
-    window_size = 100
-    transactions = []
-    min_support = 7
-
-    try:
-        for message in consumer:
-            transaction = message.value
-            transactions.append(transaction)
-
-            if len(transactions) > window_size:
-                transactions.pop(0)
-
-            if len(transactions) == window_size:
-                # Perform Apriori on the current window of transactions
-                frequent_itemsets = apriori(transactions, min_support)
-                print("\n\nFrequent Itemsets:", frequent_itemsets)
-                
-    except KeyboardInterrupt:
-        print("Stopped by user.")
-
-if __name__ == "__main__":
-    main()'''
-
-
 def main():
+    # MongoDB connection setup
+    # Connect to the MongoDB server running on localhost default port
+    client = MongoClient('localhost', 27017)
+    db = client['APRIORI_db']  # Database name
+    collection = db['itemsets']  # Collection name
+
+    # Kafka consumer setup
     consumer = KafkaConsumer(
         'bda3',
         bootstrap_servers=['localhost:9092'],
@@ -100,15 +83,19 @@ def main():
             if len(transactions) == window_size:
                 # Perform Apriori on the current window of transactions
                 frequent_itemsets = apriori(transactions, min_support)
-                # Convert frozensets back to sets before printing
-                frequent_itemsets = [set(itemset)
-                                     for itemset in frequent_itemsets]
-                print("\n\nFrequent Itemsets:")
+                # Store itemsets in MongoDB
                 for itemset in frequent_itemsets:
-                    print(itemset)
+                    # Convert frozenset to list for MongoDB storage
+                    document = {'itemset': list(
+                        itemset), 'support': len(itemset)}
+                    collection.insert_one(document)
+                print(f"Stored {len(frequent_itemsets)} itemsets to MongoDB.")
 
     except KeyboardInterrupt:
         print("Stopped by user.")
+    finally:
+        consumer.close()
+        client.close()
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+from pymongo import MongoClient
 from kafka import KafkaConsumer
 import json
 from collections import defaultdict, Counter
@@ -10,7 +11,6 @@ def hash_pair(pair):
 
 
 def pcy_algorithm(transactions, min_support, bitmap_size):
-    # First pass: count item frequencies and hash pair buckets
     item_counts = defaultdict(int)
     bucket_counts = defaultdict(int)
     for transaction in transactions:
@@ -21,10 +21,8 @@ def pcy_algorithm(transactions, min_support, bitmap_size):
             bucket_index = hash_pair(pair)
             bucket_counts[bucket_index] += 1
 
-    # Create bitmap for frequent buckets
     bitmap = [1 if count >= min_support else 0 for count in bucket_counts.values()]
 
-    # Second pass: only count pairs that hash to frequent buckets
     pair_counts = defaultdict(int)
     for transaction in transactions:
         unique_items = sorted(set(transaction))
@@ -32,13 +30,17 @@ def pcy_algorithm(transactions, min_support, bitmap_size):
             if bitmap[hash_pair(pair)]:
                 pair_counts[pair] += 1
 
-    # Filter pairs by minimum support
     frequent_pairs = {pair for pair,
                       count in pair_counts.items() if count >= min_support}
     return frequent_pairs
 
 
 def main():
+    # MongoDB connection setup
+    client = MongoClient('localhost', 27017)
+    db = client['PCY_db']
+    collection = db['pcy_itemsets']
+
     consumer = KafkaConsumer(
         'bda3',
         bootstrap_servers=['localhost:9092'],
@@ -62,10 +64,18 @@ def main():
             if len(transactions) == window_size:
                 frequent_pairs = pcy_algorithm(
                     transactions, min_support, bitmap_size)
-                print("Frequent Itemsets (PCY):", frequent_pairs)
+                # Store frequent pairs in MongoDB
+                for pair in frequent_pairs:
+                    document = {'pair': list(pair), 'support': min_support}
+                    collection.insert_one(document)
+                print(f"Stored {len(frequent_pairs)
+                                } frequent pairs to MongoDB.")
 
     except KeyboardInterrupt:
         print("Stopped by user.")
+    finally:
+        consumer.close()
+        client.close()
 
 
 if __name__ == "__main__":

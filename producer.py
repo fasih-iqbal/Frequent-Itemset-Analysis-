@@ -5,13 +5,16 @@ from time import sleep
 import sys
 import signal
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 def create_kafka_producer(servers):
     return KafkaProducer(
         bootstrap_servers=servers,
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
+
 
 def stream_preprocessed_data(input_file, producer, topic, delay=1):
     def signal_handler(sig, frame):
@@ -35,6 +38,7 @@ def stream_preprocessed_data(input_file, producer, topic, delay=1):
             except Exception as e:
                 logging.error(f"An error occurred: {e}")
 
+
 if __name__ == "__main__":
     input_file = 'pp.json'  # Path to the preprocessed data file
     topic_name = 'bda3'
@@ -43,4 +47,3 @@ if __name__ == "__main__":
 
     producer = create_kafka_producer(kafka_servers)
     stream_preprocessed_data(input_file, producer, topic_name, delay_seconds)
-

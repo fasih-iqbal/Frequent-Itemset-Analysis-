@@ -1,5 +1,6 @@
 import json
 
+
 class StreamHandler:
     def __init__(self, window_size):
         self.window_size = window_size
@@ -13,7 +14,8 @@ class StreamHandler:
         if 'category' in product:
             for cat in product['category']:
                 if any(kw in cat for kw in ["Material:", "Size:", "Style:"]):
-                    cat = cat.replace('.', ': ').title()  # Normalize the formatting
+                    # Normalize the formatting
+                    cat = cat.replace('.', ': ').title()
                     transaction.add(cat)
                 elif ':' not in cat:
                     transaction.add(f"Category: {cat}")
@@ -22,23 +24,26 @@ class StreamHandler:
                     transaction.add(f"{key.strip().title()}: {value.strip()}")
 
         if 'features' in product:
-            transaction.update(f"Feature: {feature}" for feature in product['features'] if feature)
+            transaction.update(
+                f"Feature: {feature}" for feature in product['features'] if feature)
 
         # Additional fields
         for key in ['also_buy', 'also_view']:
             if key in product:
-                transaction.update(f"{key.replace('_', ' ').title()}: {item}" for item in product[key] if item)
+                transaction.update(f"{key.replace('_', ' ').title()}: {
+                                   item}" for item in product[key] if item)
 
         if len(self.transactions) >= self.window_size:
             self.transactions.pop(0)
         self.transactions.append(transaction)
         return transaction
 
+
 def process_streaming_file(file_path, output_path, window_size):
     stream_handler = StreamHandler(window_size=window_size)
     buffer_size = 100  # Number of transactions to write in one go
     buffer = []
-    
+
     with open(file_path, 'r') as file, open(output_path, 'w') as output:
         for line in file:
             try:
@@ -57,8 +62,8 @@ def process_streaming_file(file_path, output_path, window_size):
         if buffer:
             output.writelines(buffer)
 
+
 # Usage example:
 file_path = '50mb.json'
 output_path = 'pp.json'
 process_streaming_file(file_path, output_path, window_size=5)
-
