@@ -4,6 +4,8 @@ from collections import defaultdict
 import itertools
 
 # Function to find frequent items
+
+
 def find_frequent_itemsets(transactions, min_support):
     item_counts = defaultdict(int)
     for transaction in transactions:
@@ -12,15 +14,19 @@ def find_frequent_itemsets(transactions, min_support):
             item_counts[item] += 1
 
     # Items meeting the minimum support
-    frequent_items = {item for item, count in item_counts.items() if count >= min_support}
+    frequent_items = {item for item,
+                      count in item_counts.items() if count >= min_support}
     return frequent_items
 
 # Generate candidate itemsets of size k from frequent itemsets of size k-1
+
+
 def generate_candidates(frequent_items, k):
     return set([
         frozenset(itemset) for itemset in itertools.combinations(frequent_items, k)
         if len(itemset) == k
     ])
+
 
 def apriori(transactions, min_support):
     k = 1
@@ -38,7 +44,8 @@ def apriori(transactions, min_support):
 
     return frequent_itemsets
 
-def main():
+
+'''def main():
     consumer = KafkaConsumer(
         'bda3',
         bootstrap_servers=['localhost:9092'],
@@ -46,9 +53,9 @@ def main():
         value_deserializer=lambda x: json.loads(x.decode('utf-8'))
     )
 
-    window_size = 700
+    window_size = 100
     transactions = []
-    min_support = 50
+    min_support = 7
 
     try:
         for message in consumer:
@@ -61,11 +68,48 @@ def main():
             if len(transactions) == window_size:
                 # Perform Apriori on the current window of transactions
                 frequent_itemsets = apriori(transactions, min_support)
-                print("Frequent Itemsets:", frequent_itemsets)
+                print("\n\nFrequent Itemsets:", frequent_itemsets)
                 
     except KeyboardInterrupt:
         print("Stopped by user.")
 
 if __name__ == "__main__":
-    main()
+    main()'''
 
+
+def main():
+    consumer = KafkaConsumer(
+        'bda3',
+        bootstrap_servers=['localhost:9092'],
+        auto_offset_reset='earliest',
+        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+    )
+
+    window_size = 100
+    transactions = []
+    min_support = 7
+
+    try:
+        for message in consumer:
+            transaction = message.value
+            transactions.append(transaction)
+
+            if len(transactions) > window_size:
+                transactions.pop(0)
+
+            if len(transactions) == window_size:
+                # Perform Apriori on the current window of transactions
+                frequent_itemsets = apriori(transactions, min_support)
+                # Convert frozensets back to sets before printing
+                frequent_itemsets = [set(itemset)
+                                     for itemset in frequent_itemsets]
+                print("\n\nFrequent Itemsets:")
+                for itemset in frequent_itemsets:
+                    print(itemset)
+
+    except KeyboardInterrupt:
+        print("Stopped by user.")
+
+
+if __name__ == "__main__":
+    main()
